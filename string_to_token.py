@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-from typing import Tuple
+from typing import Tuple, Any, NoReturn, Optional
 
 
 class Token:
@@ -19,12 +19,10 @@ class Token:
             [alpha, digit, ..., others that may help me to make meaningfull logic writing]
         is_multiple : bool
             does this token was seperated with some delimiter Tokens
-
-        NotImplemented:
-            next : Token
-                next Token
-            prev : Token
-                prev Token
+        next : Token
+            next Token
+        prev : Token
+            prev Token
     """
 
     name: str = ''
@@ -33,12 +31,14 @@ class Token:
     index_end: int = 0
     is_symbol: bool = False
     is_multiple: bool = False
+    prev_token: Any = None
+    next_token: Any = None
 
     def __init__(self, character_index, character):
         self.index = character_index
         self.name = character
 
-    def __str__(self):
+    def beautify(self) -> str:
         return f"""
             {self.__class__.__name__}
             name={self.name}
@@ -47,22 +47,18 @@ class Token:
             endidx={self.index + len(self.name)}
             is_symbol={self.is_symbol}
             is_multiple={self.is_multiple}
+            prev_token={self.prev_token}
+            next_tokne={self.next_token}
         """
 
 
 
 class Character:
+    __slots__ = ('token', 'char_types')
 
-    __slots__ = ('token')
 
-
-    def character_type(self, character: str) -> Tuple[str, bool]:
-        """Setting name to some characters (converting character to *name)
-        """
-
-        utype = None
-
-        others = {
+    def __init__(self):
+        self.char_types = {
             'digit': ('digit', False),
             'alpha': ('alpha', False),
             'space': ('space', True),
@@ -73,15 +69,21 @@ class Character:
             # '"': 'double_quote',
         }
 
-        rec_types = others['digit'] \
-            if character.isdigit() else others['alpha'] \
-            if character.isalpha() else others['space'] \
+    def register_new_type(self, character: str, real_type: str, is_symbol: bool):
+        self.char_types[character] = (real_type, is_symbol)
+
+    def character_type(self, character: str) -> Tuple[str, bool]:
+        """Setting name to some characters (converting character to *name)
+        """
+        rec_types = self.char_types['digit'] \
+            if character.isdigit() else self.char_types['alpha'] \
+            if character.isalpha() else self.char_types['space'] \
             if character.isspace() else None
 
         if rec_types is not None:
             return rec_types
 
-        has_name = others.get(character)
+        has_name = self.char_types.get(character)
 
         if has_name is None:
             raise NotImplementedError(f"<{character}>: not found")
@@ -89,12 +91,11 @@ class Character:
         return has_name
 
 
-    def is_space(self, value):
+    def is_space(self, value: str) -> Optional[bool]:
         if value == 'space':
             return True
 
-
-    def _token_types(self, tokens):
+    def _token_types(self, tokens: Any) -> Tuple[bool, list]:
         token_type = None
         multiple_types = False
         tokens_between_spaces = []
@@ -114,7 +115,7 @@ class Character:
         return multiple_types, tokens_between_spaces
 
 
-    def check_for_multiple_types(self):
+    def check_for_multiple_types(self) -> None:
         # tokens -> [..., -1]
 
         multiple_types, tokens_between_spaces = self._token_types(reversed(self.tokens))
@@ -128,7 +129,26 @@ class Character:
                 multi_token.is_multiple = True
 
 
-    def disassemble(self):
+    def linking_tokens(self) -> NoReturn:
+        """Just saving next and prev token to current token
+        """
+        # [None, prev_next, None]
+        for tidx, token in enumerate(self.tokens):
+            if tidx:
+                self.tokens[tidx-1].next_token = token
+                self.tokens[tidx].prev_token = self.tokens[tidx-1]
+
+
+    def token_to_zombie(self, token_index: int) -> NoReturn:
+        """Token not just removing from tokens, but changing type to 'zombie'
+        """
+        token = self.tokens[token_index]
+        token.name = ''
+        token.real_type = 'zombie'
+        token.is_symbol = False
+        token.is_multiple = False
+
+    def disassemble(self) -> NoReturn:
         """Generating data to minimize searching
         """
         current_char_type = None
@@ -166,6 +186,7 @@ class Character:
         token_group.real_type = current_char_type
         self.tokens.append(token_group)
         self.check_for_multiple_types()
+        self.linking_tokens()
 
 
 class State(Character):
@@ -182,7 +203,7 @@ class State(Character):
         # 1.3x5 -> -x [1.3, 5]  ; 1.3 -> is multiple (no need to remove multi sign)
 
         if not self.tokens[token_index].is_multiple:
-            del self.tokens[token_index]
+            self.token_to_zombie(token_index)
             return None
 
         # backward
@@ -199,7 +220,7 @@ class State(Character):
         if not multiple_types:
             self.tokens[token_index+1].is_multiple = False
 
-        del self.tokens[token_index]
+        self.token_to_zombie(token_index)
 
 
 
@@ -222,8 +243,9 @@ if __name__ == '__main__':
 
     s = SIgt(target)
     s.disassemble()
-    # s._recreate_token_state(1)
-
+    s._recreate_token_state(1)
+    s._recreate_token_state(2)
+    s.register_new_type(character='*', real_type='star', is_symbol=True)
 
     for token in s.tokens:
-        print(token)
+        print(token.beautify())

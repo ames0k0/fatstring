@@ -68,10 +68,8 @@ def test_remove_alphabets_multiple_type():
     s.disassemble()
     s._recreate_token_state(1)
 
-    tokens = len(s.tokens)
-    first_token, second_token = s.tokens
+    first_token, removed_token, second_token = s.tokens
 
-    assert tokens == 2, f"Excepted two token after removing 3rd, but got: {tokens}"
     assert first_token.is_multiple == False, f"Doesn't removed multiple sign: {target} : {first_token}"
     assert second_token.is_multiple == False, f"Doesn't removed multiple sign: {target} : {second_token}"
 
@@ -83,10 +81,7 @@ def test_only_one_alphabets_with_multiple_type():
     s.disassemble()
     s._recreate_token_state(1)
 
-    tokens = len(s.tokens)
-    first_token, second_token, third_token = s.tokens
-
-    assert tokens == 3, f"Excepted three token after removing 4th, but got: {tokens}"
+    first_token, removed_token, second_token, third_token = s.tokens
 
     assert first_token.is_multiple == False, \
         f"Removed multiple sign from wrong element: {target} :: {first_token}"
@@ -96,3 +91,17 @@ def test_only_one_alphabets_with_multiple_type():
 
     assert third_token.is_multiple == True, \
         f"Doesn't removed multiple sign: {target} :: {third_token}"
+
+
+def test_turning_token_to_zombie_type():
+    target = '5.0j'
+
+    s = State(target)
+    s.disassemble()
+    s._recreate_token_state(1)
+
+    first_token, removed_token, second_token, third_token = s.tokens
+
+    assert len(s.tokens) == 4, f"Just changed token type, not removed but: {removed_token}"
+    assert removed_token.real_type == 'zombie', \
+        f"Token doesn't turned into 'zombie' after removing: {removed_token}"
